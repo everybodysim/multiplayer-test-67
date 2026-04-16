@@ -2,7 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Colyseus Test (No Console)</title>
+  <title>Colyseus Test (Fixed Debug)</title>
+
   <style>
     body {
       font-family: monospace;
@@ -10,14 +11,17 @@
       color: #0f0;
       padding: 16px;
     }
+
     .box {
       border: 1px solid #0f0;
       padding: 10px;
       margin-bottom: 10px;
     }
+
     .error { color: #ff4d4d; }
     .warn { color: #ffd24d; }
     .ok { color: #66ff99; }
+
     #log {
       white-space: pre-wrap;
       max-height: 400px;
@@ -27,6 +31,7 @@
     }
   </style>
 </head>
+
 <body>
 
 <h2>Colyseus Connection Test</h2>
@@ -43,64 +48,113 @@
   <div id="log"></div>
 </div>
 
-<script type="module">
-  import { Client } from "https://cdn.jsdelivr.net/npm/colyseus.js@0.15.25/dist/colyseus.js.mjs";
+<!-- SAFE UMD BUILD (NO MODULE ISSUES) -->
+<script src="https://cdn.jsdelivr.net/npm/colyseus.js@0.15.25/dist/colyseus.js"></script>
 
-  const server = "https://us-sjc-e902b997.colyseus.cloud";
+<script>
+const server = "https://us-sjc-e902b997.colyseus.cloud";
 
-  const el = (id) => document.getElementById(id);
+const el = (id) => document.getElementById(id);
 
-  function log(msg, cls = "") {
-    const div = document.createElement("div");
-    div.textContent = msg;
-    if (cls) div.className = cls;
-    el("log").appendChild(div);
-    el("log").scrollTop = el("log").scrollHeight;
-  }
+function log(msg, cls = "") {
+  const div = document.createElement("div");
+  div.textContent = msg;
+  if (cls) div.className = cls;
+  el("log").appendChild(div);
+  el("log").scrollTop = el("log").scrollHeight;
+}
 
-  el("server").textContent = server;
-  el("status").textContent = "connecting...";
+function setStatus(text, cls = "") {
+  el("status").textContent = text;
+  el("status").className = cls;
+}
 
-  const client = new Client(server);
+el("server").textContent = server;
+
+setStatus("connecting...");
+
+const client = new Colyseus.Client(server);
+
+(async () => {
+
+  let room;
 
   try {
-    const room = await client.joinOrCreate("racing", {
-      mapCode: "test"
-    });
+    log("Step 1: Creating client connection...");
 
-    el("status").textContent = "connected ✅";
-    el("status").className = "ok";
+    // -----------------------------
+    // MATCHMAKING STEP (SAFE)
+    // -----------------------------
+    setStatus("matchmaking...");
 
-    el("room").textContent = room.name;
-    el("session").textContent = room.sessionId;
+    try {
+      room = await client.joinOrCreate("racing", {
+        mapCode: "test"
+      });
+    } catch (err) {
 
-    log("Connected successfully", "ok");
+      setStatus("matchmaking failed ❌", "error");
 
+      log("JOIN ERROR ❌", "error");
+
+      log(
+        JSON.stringify(err, Object.getOwnPropertyNames(err), 2),
+        "error"
+      );
+
+      return;
+    }
+
+    // -----------------------------
+    // SAFETY CHECK
+    // -----------------------------
+    if (!room) {
+      setStatus("failed ❌", "error");
+      log("Room is undefined (server rejected join)", "error");
+      return;
+    }
+
+    // -----------------------------
+    // SUCCESS
+    // -----------------------------
+    setStatus("connected ✅", "ok");
+
+    el("room").textContent = room.name || "no-name";
+    el("session").textContent = room.sessionId || "no-session";
+
+    log("JOINED ROOM SUCCESS ✅", "ok");
+    log("Room: " + (room.name || "unknown"), "ok");
+    log("Session: " + room.sessionId, "ok");
+
+    // -----------------------------
+    // LIVE EVENTS
+    // -----------------------------
     room.onStateChange((state) => {
-      log("State update received");
+      log("state update");
     });
 
     room.onMessage("*", (type, message) => {
-      log(`Message: ${type} → ${JSON.stringify(message)}`);
+      log(`message: ${type} → ${JSON.stringify(message)}`);
     });
 
     room.onError((code, message) => {
-      el("status").textContent = "error";
-      el("status").className = "error";
-      log(`Error ${code}: ${message}`, "error");
+      setStatus("room error ❌", "error");
+      log(`ERROR ${code}: ${message}`, "error");
     });
 
     room.onLeave(() => {
-      el("status").textContent = "disconnected";
-      el("status").className = "warn";
+      setStatus("disconnected", "warn");
       log("Left room", "warn");
     });
 
-  } catch (err) {
-    el("status").textContent = "failed ❌";
-    el("status").className = "error";
-    log("Connection failed: " + (err.message || err), "error");
+  } catch (e) {
+    setStatus("fatal error ❌", "error");
+    log("FATAL ERROR:", "error");
+    log(String(e), "error");
   }
+
+})();
+
 </script>
 
 </body>
