@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Colyseus Test (No Console)</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #111;
+      color: #0f0;
+      padding: 16px;
+    }
+    .box {
+      border: 1px solid #0f0;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    .error { color: #ff4d4d; }
+    .warn { color: #ffd24d; }
+    .ok { color: #66ff99; }
+    #log {
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow: auto;
+      border: 1px solid #0f0;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Colyseus Connection Test</h2>
+
+<div class="box">
+  <div>Server: <span id="server">...</span></div>
+  <div>Status: <span id="status">starting...</span></div>
+  <div>Room: <span id="room">-</span></div>
+  <div>Session ID: <span id="session">-</span></div>
+</div>
+
+<div class="box">
+  <b>Event Log</b>
+  <div id="log"></div>
+</div>
+
+<script type="module">
+  import { Client } from "https://cdn.jsdelivr.net/npm/colyseus.js@0.15.25/dist/colyseus.js.mjs";
+
+  const server = "https://us-sjc-e902b997.colyseus.cloud";
+
+  const el = (id) => document.getElementById(id);
+
+  function log(msg, cls = "") {
+    const div = document.createElement("div");
+    div.textContent = msg;
+    if (cls) div.className = cls;
+    el("log").appendChild(div);
+    el("log").scrollTop = el("log").scrollHeight;
+  }
+
+  el("server").textContent = server;
+  el("status").textContent = "connecting...";
+
+  const client = new Client(server);
+
+  try {
+    const room = await client.joinOrCreate("racing", {
+      mapCode: "test"
+    });
+
+    el("status").textContent = "connected ✅";
+    el("status").className = "ok";
+
+    el("room").textContent = room.name;
+    el("session").textContent = room.sessionId;
+
+    log("Connected successfully", "ok");
+
+    room.onStateChange((state) => {
+      log("State update received");
+    });
+
+    room.onMessage("*", (type, message) => {
+      log(`Message: ${type} → ${JSON.stringify(message)}`);
+    });
+
+    room.onError((code, message) => {
+      el("status").textContent = "error";
+      el("status").className = "error";
+      log(`Error ${code}: ${message}`, "error");
+    });
+
+    room.onLeave(() => {
+      el("status").textContent = "disconnected";
+      el("status").className = "warn";
+      log("Left room", "warn");
+    });
+
+  } catch (err) {
+    el("status").textContent = "failed ❌";
+    el("status").className = "error";
+    log("Connection failed: " + (err.message || err), "error");
+  }
+</script>
+
+</body>
+</html>
